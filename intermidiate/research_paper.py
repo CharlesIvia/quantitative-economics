@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn import preprocessing
 from sklearn.utils import axis0_safe_slice
+import qeds
+
+colors = qeds.themes.COLOR_CYCLE
 from sklearn import (
     linear_model,
     metrics,
@@ -155,6 +158,7 @@ md_lr_model.fit(X[["int_roll"]], y)
 beta_0 = md_lr_model.intercept_
 beta_1 = md_lr_model.coef_[0]
 
+print(beta_1)
 print(f"Fit model: log (md) = {beta_0:.4f} + {beta_1:.4f} int_roll")
 
 ax = var_scatter(df)
@@ -168,5 +172,71 @@ print(
 )
 
 # Multivariate regression
+
+lr_model = linear_model.LinearRegression()
+lr_model.fit(X, y)
+
+# Print coefficients
+
+beta_0 = lr_model.intercept_
+beta_1 = lr_model.coef_[0]
+beta_2 = lr_model.coef_[1]
+beta_3 = lr_model.coef_[2]
+beta_4 = lr_model.coef_[3]
+beta_5 = lr_model.coef_[4]
+beta_6 = lr_model.coef_[5]
+
+columns = X.columns
+coefs = list([beta_1, beta_2, beta_3, beta_4, beta_5, beta_6])
+
+
+coefs_dict = dict(zip(columns, coefs))
+print(coefs_dict)
+
+print(
+    f"Fit model: log (md) = {beta_0:.4f} {beta_1:.15f} real_gdp {beta_2:.4f} pop_growth + {beta_3:.4f} exc_rate + {beta_4:.4f} inflation + {beta_5:.4f} real_interest {beta_6:.4f} int_roll"
+)
+
+
+ax = var_scatter(df)
+
+
+def scatter_model(mod, X, ax=None, color=colors[1], x="int_roll"):
+    if ax is None:
+        _, ax = plt.subplots()
+    ax.scatter(X[x], mod.predict(X), c=color)
+    return ax
+
+
+scatter_model(lr_model, X, ax, color=colors[1])
+scatter_model(md_lr_model, X[["int_roll"]], ax, color=colors[2])
+
+ax.legend(["data", "full model", "introll_model"])
+
+new_gdp = 6.854491e09
+new_pop = 3.863433
+new_exc = 9.047498
+new_inflation = 11.603053
+new_real_interest = 1.410506
+new_int_roll = 0.330867
+
+
+print(
+    "Md predicted is,",
+    np.exp(
+        lr_model.predict(
+            [
+                [
+                    new_gdp,
+                    new_pop,
+                    new_exc,
+                    new_inflation,
+                    new_real_interest,
+                    new_int_roll,
+                ]
+            ]
+        )
+    ),
+)
 
 plt.show()
