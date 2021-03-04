@@ -1,3 +1,4 @@
+from math import log
 import pandas as pd
 import numpy as np
 from scipy.stats import skew, kurtosis
@@ -8,6 +9,9 @@ import seaborn as sns
 from sklearn import preprocessing
 from sklearn.utils import axis0_safe_slice
 import qeds
+from statsmodels.stats.diagnostic import normal_ad
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.stats.stattools import durbin_watson
 
 colors = qeds.themes.COLOR_CYCLE
 from sklearn import (
@@ -21,7 +25,7 @@ from sklearn import (
     preprocessing,
 )
 
-# Read data
+# Read data and clean it
 df = pd.read_excel("project_data.xlsx", index_col="Unnamed: 0")
 
 columns_to_drop = [
@@ -51,7 +55,6 @@ print(df)
 columns = df.columns
 
 # Change type
-
 for col in list(df):
     df[col] = df[col].astype(float)
 
@@ -67,6 +70,8 @@ log_df["log_inflation"] = np.log(df["inflation"])
 log_df["log_real_interest"] = np.log(df["real_interest"])
 log_df["log_volatility"] = np.log(df["volatility"])
 
+# Deal with missing value in log_real interest rate
+log_df = log_df.fillna(method="bfill")
 print(log_df)
 
 print("=================================================")
@@ -83,33 +88,15 @@ print(f"Log_df skewness: \n {log_df_skew}")
 
 print("=================================================")
 
-# Creating a normal df
-normal_df = pd.DataFrame()
-normal_df["Md"] = df["Md"]
-normal_df["real_gdp"] = log_df["log_real_gdp"]
-normal_df["pop_growth"] = log_df["log_pop_growth"]
-normal_df["exc_rate"] = df["exc_rate"]
-normal_df["inflation"] = log_df["log_inflation"]
-normal_df["real_interest"] = df["real_interest"]
-normal_df["volatility"] = df["volatility"]
-
-print(normal_df)
+# Kurtosis in the log df
+log_df_kurtosis = log_df.kurtosis()
+print(f"Log_df kurtosis (excess kurtosis): \n {log_df_kurtosis}")
 
 print("=================================================")
 
-# Skewness in normal df
-normal_df_skew = normal_df.skew()
-print(f"Normal_df skewness: \n {normal_df_skew}")
+# Jack-Bera test for the original df
 
-print("=================================================")
-
-# Kurtosis in the normal df
-normal_df_kurtosis = normal_df.kurtosis()
-print(f"Normal_df kurtosis: \n {normal_df_kurtosis}")
-
-print("=================================================")
-
-# Jack-Bera test
+print("Jack-Bera test for the original df")
 
 j_b_ouput = ["j_b_statistic", "pvalue", "skewness", "kurtosis"]
 j_b_real_gdp = jarque_bera(df["real_gdp"])
@@ -119,17 +106,6 @@ j_b_inflation = jarque_bera(df["inflation"])
 j_b_real_real_interest = jarque_bera(df["real_interest"])
 j_b_real_volatility = jarque_bera(df["volatility"])
 j_b_Md = jarque_bera(df["Md"])
-
-# Jack-bera for normal_df
-
-# j_b_ouput = ["j_b_statistic", "pvalue", "skewness", "kurtosis"]
-# j_b_real_gdp = jarque_bera(normal_df["real_gdp"])
-# j_b_real_pop_growth = jarque_bera(normal_df["pop_growth"])
-# j_b_real_exc_rate = jarque_bera(normal_df["exc_rate"])
-# j_b_inflation = jarque_bera(normal_df["inflation"])
-# j_b_real_real_interest = jarque_bera(normal_df["real_interest"])
-# j_b_real_volatility = jarque_bera(normal_df["volatility"])
-# j_b_Md = jarque_bera(normal_df["Md"])
 
 print(f"J-B for Md: {dict(zip(j_b_ouput, j_b_Md))}")
 print(f"J-B for real gdp: {dict(zip(j_b_ouput, j_b_real_gdp))}")
@@ -141,23 +117,50 @@ print(f"J-B for volatility: {dict(zip(j_b_ouput, j_b_real_volatility))}")
 
 print("=================================================")
 
+
+# Jack-Bera test for the log df
+
+print("Jack-Bera test for the log df")
+
+j_b_ouput = ["j_b_statistic", "pvalue", "skewness", "kurtosis"]
+j_b_log_Md = jarque_bera(log_df["log_md"])
+j_b_log_real_gdp = jarque_bera(log_df["log_real_gdp"])
+j_b_log_real_pop_growth = jarque_bera(log_df["log_pop_growth"])
+j_b_log_real_exc_rate = jarque_bera(log_df["log_exc_rate"])
+j_b_log_inflation = jarque_bera(log_df["log_inflation"])
+j_b_log_real_real_interest = jarque_bera(log_df["log_real_interest"])
+j_b_log_real_volatility = jarque_bera(log_df["log_volatility"])
+
+
+print(f"J-B for log Md: {dict(zip(j_b_ouput, j_b_log_Md))}")
+print(f"J-B for log real gdp: {dict(zip(j_b_ouput, j_b_log_real_gdp))}")
+print(f"J-B for log pop growth: {dict(zip(j_b_ouput, j_b_log_real_pop_growth))}")
+print(f"J-B for log exc rate: {dict(zip(j_b_ouput, j_b_log_real_exc_rate))}")
+print(f"J-B for log inflation: {dict(zip(j_b_ouput, j_b_log_inflation))}")
+print(f"J-B for log real interest: {dict(zip(j_b_ouput, j_b_log_real_real_interest))}")
+print(f"J-B for log volatility: {dict(zip(j_b_ouput, j_b_log_real_volatility))}")
+
+print("=================================================")
+
+
 # Distribution of variables
 
 
-def show_distribution(column, color):
+def show_distribution(dataframe, column, color):
     fig, axes = plt.subplots()
-    sns.distplot(normal_df[column], color=color)
+    sns.distplot(dataframe[column], color=color)
     plt.title(f"Normal distribution of {column}")
     plt.show()
 
 
-# show_distribution("Md", "red")
-# show_distribution("real_gdp", "green")
-# show_distribution("pop_growth", "gold")
-# show_distribution("exc_rate", "purple")
-# show_distribution("inflation", "dodgerblue")
-# show_distribution("real_interest", "deeppink")
-# show_distribution("volatility", "yellow")
+# show_distribution(log_df, "log_md", "red")
+# show_distribution(log_df, "log_real_gdp", "green")
+# show_distribution(log_df, "log_pop_growth", "gold")
+# show_distribution(log_df, "log_exc_rate", "purple")
+# show_distribution(log_df, "log_inflation", "dodgerblue")
+# show_distribution(log_df, "log_real_interest", "deeppink")
+# show_distribution(log_df, "log_volatility", "yellow")
+
 
 # Show trends in variables
 
@@ -207,10 +210,10 @@ print(f"Original df correlation matrix: \n {df_corr}")
 
 print("=================================================")
 
-# Normal df correlation
+# Log df correlation
 
-normal_df_corr = normal_df.corr()
-print(f"Normal df correlation matrix: \n {normal_df_corr}")
+log_df_corr = log_df.corr()
+print(f"Log df correlation matrix: \n {log_df_corr}")
 
 print("=================================================")
 
@@ -219,8 +222,7 @@ print("=================================================")
 # Linear regression for original df
 
 X = df.drop(["Md"], axis=1).copy()
-X_norm = normal_df.drop(["Md"], axis=1).copy()
-
+X_log = log_df.drop(["log_md"], axis=1).copy()
 print(X.head())
 
 print("=================================================")
@@ -267,12 +269,15 @@ beta_1 = df_lr_model.coef_[0]
 print("The df_lr model using only volatility as predictor variable: ")
 print(f"Fit model: log (md) = {beta_0:.4f} + {beta_1:.4f} volatility")
 
+df_lr_prediction = beta_0 + beta_1 * 2.252822
+print(f"Prediction: \n {df_lr_prediction}")
+
 print("=================================================")
 
-# log_md  model (original df)
+# log_md  model (original df) using only volatility as a predictor
 
 log_model = linear_model.LinearRegression()
-log_model.fit(X[["volatility"]], y_cont)
+log_model.fit(X_log[["log_volatility"]], y_cont)
 
 beta_0 = log_model.intercept_
 beta_1 = log_model.coef_[0]
@@ -280,9 +285,14 @@ beta_1 = log_model.coef_[0]
 print("The log model using only volatility as predictor variable: ")
 print(f"Fit model: log (md) = {beta_0:.4f} + {beta_1:.4f} volatility")
 
+log_model_prediction = beta_0 + beta_1 * 2.252822
+print(f"Prediction: \n {log_model_prediction}")
+
 print("=================================================")
 
-# Full linear model using all the features
+# Full linear model using all the features- This model uses original df
+
+print("Full linear model using all the features-uses original df:")
 
 df_full_lr_model = linear_model.LinearRegression()
 df_full_lr_model.fit(X, y)
@@ -311,11 +321,14 @@ df["predicted_md"] = df_full_lr_model.predict(X)
 df["residuals"] = abs(df["Md"]) - abs(df["predicted_md"])
 
 print(df)
-
+df_r_squared = df_full_lr_model.score(X, y)
+print(f"R-squared for df model is: {df_r_squared}")
 
 print("=================================================")
 
-# Full linear log model using all features
+# Full linear model using all features (log md is used)
+
+print("Full linear model using all features (log md is used):")
 
 control_df_full_lr_model = linear_model.LinearRegression()
 control_df_full_lr_model.fit(X, y_cont)
@@ -345,23 +358,27 @@ control_df["residuals"] = abs(control_df["Md"]) - abs(control_df["predicted_md"]
 
 print(control_df)
 
+control_r_squared = control_df_full_lr_model.score(X, y_cont)
+print(f"R-squared for control model is: {control_r_squared}")
 
 print("=================================================")
 
-# Full linear model using normal df
+# Full linear model using the log df
 
-normal_df_full_lr_model = linear_model.LinearRegression()
-normal_df_full_lr_model.fit(X_norm, y)
+print("Full linear model using the log df:")
 
-beta_0 = normal_df_full_lr_model.intercept_
-beta_1 = normal_df_full_lr_model.coef_[0]
-beta_2 = normal_df_full_lr_model.coef_[1]
-beta_3 = normal_df_full_lr_model.coef_[2]
-beta_4 = normal_df_full_lr_model.coef_[3]
-beta_5 = normal_df_full_lr_model.coef_[4]
-beta_6 = normal_df_full_lr_model.coef_[5]
+log_df_full_lr_model = linear_model.LinearRegression()
+log_df_full_lr_model.fit(X_log, y_cont)
 
-features = X_norm.columns
+beta_0 = log_df_full_lr_model.intercept_
+beta_1 = log_df_full_lr_model.coef_[0]
+beta_2 = log_df_full_lr_model.coef_[1]
+beta_3 = log_df_full_lr_model.coef_[2]
+beta_4 = log_df_full_lr_model.coef_[3]
+beta_5 = log_df_full_lr_model.coef_[4]
+beta_6 = log_df_full_lr_model.coef_[5]
+
+features = X_log.columns
 coefs = list([beta_1, beta_2, beta_3, beta_4, beta_5, beta_6])
 print(f"Model features: \n {features}")
 
@@ -372,7 +389,140 @@ print(
     f"Fit model: log (md) = {beta_0:.4f} {beta_1:.15f} real_gdp {beta_2:.4f} pop_growth + {beta_3:.4f} exc_rate + {beta_4:.4f} inflation + {beta_5:.4f} real_interest {beta_6:.4f} volatility"
 )
 
-normal_df["predicted_md"] = normal_df_full_lr_model.predict(X_norm)
-normal_df["residuals"] = abs(normal_df["Md"]) - abs(normal_df["predicted_md"])
+log_df["predicted_md"] = log_df_full_lr_model.predict(X_log)
+log_df["residuals"] = abs(log_df["log_md"]) - abs(log_df["predicted_md"])
 
-print(normal_df)
+print(log_df)
+
+log_r_squared = np.exp(control_df_full_lr_model.score(X_log, y_cont))
+print(f"R-squared for full log model is: {log_r_squared}")
+
+# Testing Linear regression assumptions
+
+##Linearlity assumption
+
+
+def linear_assumption(dataframe, actual):
+    # Plotting the actual vs predicted values
+
+    sns.lmplot(
+        x=actual, y="predicted_md", data=dataframe, fit_reg=False, height=6, aspect=2
+    )
+    # Plotting the diagonal line
+
+    line_df = pd.DataFrame()
+    line_df["actual"] = dataframe["Md"]
+    line_df["predicted"] = dataframe["predicted_md"]
+
+    line_coords = np.arange(line_df.min().min(), line_df.max().max())
+    plt.plot(
+        line_coords, line_coords, color="darkorange", linestyle="--"  # X and y points
+    )
+    plt.title("Actual_Md vs. Predicted_Md")
+    plt.tight_layout()
+    plt.show()
+
+
+linear_assumption(control_df, "Md")
+
+##Normality of error terms
+
+
+def normal_errors_assumption(dataframe, color, p_value_thresh=0.05):
+    residuals = dataframe["residuals"]
+
+    print("Using the Anderson-Darling test for normal distribution")
+
+    p_value = normal_ad(residuals)[1]
+    print("p-value from the test - below 0.05 generally means non-normal:", p_value)
+
+    if p_value < p_value_thresh:
+        print("Residuals are not normally distributed")
+    else:
+        print("Residuals are normally distributed")
+
+    # Plotting the residuals distribution
+    sns.distplot(dataframe["residuals"], color=color)
+    plt.title(f"Normal distribution of residuals")
+    plt.show()
+
+    print()
+    if p_value > p_value_thresh:
+        print("Assumption satisfied")
+    else:
+        print("Assumption not satisfied")
+        print()
+        print("Confidence intervals will likely be affected")
+        print("Try performing nonlinear transformations on variables")
+
+
+normal_errors_assumption(control_df, "blue")
+normal_errors_assumption(log_df, "blue")
+
+## Little to no multicollinearlity
+
+
+def multicollinearlity_assumption(features, feature_names=None):
+    print("Assumption 3: Little to no multicollinearity among predictors")
+
+    # Plotting the heatmap
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(pd.DataFrame(features, columns=feature_names).corr(), annot=True)
+    plt.title("Correlation of Variables")
+    plt.show()
+
+
+multicollinearlity_assumption(X)
+
+## No Autocorrelation of the error terms
+
+
+def autocorrelation_assumption(dataframe):
+    print("Assumption 4: No Autocorrelation", "\n")
+
+    residuals = dataframe["residuals"]
+    print("\nPerforming Durbin-Watson Test")
+    print(
+        "Values of 1.5 < d < 2.5 generally show that there is no autocorrelation in the data"
+    )
+    print("0 to 2< is positive autocorrelation")
+    print(">2 to 4 is negative autocorrelation")
+    print("-------------------------------------")
+
+    durbinWatson = durbin_watson(residuals)
+    print("Durbin-Watson:", durbinWatson)
+    if durbinWatson < 1.5:
+        print("Signs of positive autocorrelation", "\n")
+        print("Assumption not satisfied")
+    elif durbinWatson > 2.5:
+        print("Signs of negative autocorrelation", "\n")
+        print("Assumption not satisfied")
+    else:
+        print("Little to no autocorrelation", "\n")
+        print("Assumption satisfied")
+
+
+autocorrelation_assumption(control_df)
+autocorrelation_assumption(log_df)
+
+# Homoscedasticity
+
+
+def homoscedasticity_assumption(dataframe):
+    # Calculating residuals for the plot
+    residuals = dataframe["residuals"]
+    dataframe["ind"] = range(0, 40, 1)
+
+    # Plotting the residuals
+    plt.subplots(figsize=(12, 6))
+    ax = plt.subplot(111)  # To remove spines
+    plt.scatter(x=dataframe.ind, y=residuals, alpha=0.5)
+    plt.plot(np.repeat(0, dataframe.ind.max()), color="darkorange", linestyle="--")
+    ax.spines["right"].set_visible(False)  # Removing the right spine
+    ax.spines["top"].set_visible(False)  # Removing the top spine
+    plt.title("Residuals")
+    plt.show()
+
+
+homoscedasticity_assumption(control_df)
+homoscedasticity_assumption(log_df)
