@@ -12,6 +12,7 @@ import qeds
 from statsmodels.stats.diagnostic import normal_ad
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.stats.stattools import durbin_watson
+from statsmodels.tsa.stattools import adfuller
 
 colors = qeds.themes.COLOR_CYCLE
 from sklearn import (
@@ -261,7 +262,7 @@ show_lmplot()
 # Linear model for for the orginal df using only volatility as predictor variable
 
 df_lr_model = linear_model.LinearRegression()
-df_lr_model.fit(X[["volatility"]], y)
+df_lr_model.fit(X[["volatility"]], y_cont)
 
 beta_0 = df_lr_model.intercept_
 beta_1 = df_lr_model.coef_[0]
@@ -360,6 +361,21 @@ print(control_df)
 
 control_r_squared = control_df_full_lr_model.score(X, y_cont)
 print(f"R-squared for control model is: {control_r_squared}")
+
+# Plotting the regression
+
+
+def scatter_model(mod, X, ax=None, color=colors[1], x="volatility"):
+    if ax is None:
+        _, ax = plt.subplots()
+    ax.scatter(X[x], np.exp(mod.predict(X)), c=color)
+    return ax
+
+
+ax = var_scatter(control_df)
+scatter_model(control_df_full_lr_model, X, ax, color=colors[1])
+scatter_model(df_lr_model, X[["volatility"]], ax, color=colors[2])
+ax.legend(["data", "full model", "volatility model"])
 
 print("=================================================")
 
@@ -526,3 +542,21 @@ def homoscedasticity_assumption(dataframe):
 
 homoscedasticity_assumption(control_df)
 homoscedasticity_assumption(log_df)
+
+# Cointegration test
+
+# ADF
+
+log_md_s = log_df["log_volatility"].values
+print(log_md_s)
+
+log_md_s_results = adfuller(log_md_s, autolag="AIC")
+print(f"ADF Statistic: {log_md_s_results[0]}")
+print(f"n_lags: {log_md_s_results[1]}")
+print(f"p-value: {log_md_s_results[1]}")
+
+for key, value in log_md_s_results[4].items():
+    print("Critical Values: ")
+    print(f"{key}, {value}")
+
+print(log_md_s_results)
