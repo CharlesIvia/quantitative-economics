@@ -6,7 +6,7 @@ from scipy import stats
 from statsmodels.stats.stattools import jarque_bera
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn import preprocessing
+from sklearn import preprocessing, metrics
 from sklearn.utils import axis0_safe_slice
 import qeds
 from statsmodels.stats.diagnostic import normal_ad
@@ -15,6 +15,7 @@ from statsmodels.stats.stattools import durbin_watson
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.stattools import coint
 from statsmodels.tsa.vector_ar.vecm import coint_johansen
+import statsmodels.api as sm
 
 colors = qeds.themes.COLOR_CYCLE
 from sklearn import (
@@ -345,7 +346,7 @@ print(f"R-squared for df model is: {df_r_squared}")
 
 print("=================================================")
 
-# Full linear model using all features (log md is used)
+# Full linear model using all features (log md is used) - Selected
 
 print("Full linear model using all features (log md is used):")
 
@@ -439,9 +440,12 @@ print(f"R-squared for full log model is: {log_r_squared}")
 def linear_assumption(dataframe, actual):
     # Plotting the actual vs predicted values
 
+    sns.set(rc={"axes.facecolor": "lightblue", "figure.facecolor": "lightblue"})
+
     sns.lmplot(
-        x=actual, y="predicted_md", data=dataframe, fit_reg=False, height=6, aspect=2
+        x=actual, y="predicted_md", data=dataframe, fit_reg=False, height=5, aspect=2
     )
+
     # Plotting the diagonal line
 
     line_df = pd.DataFrame()
@@ -566,8 +570,9 @@ def homoscedasticity_assumption(dataframe):
 # Cointegration test
 
 # ADF
+# rolling(min_periods=1, window=40).mean().values
 
-md_values = diff_log_df["log_pop_growth"]
+md_values = diff_log_df["log_volatility"]
 print(md_values)
 
 md_values.plot()
@@ -596,3 +601,25 @@ print(f"Trace statitistics: \n {variable_coint.trace_stat}")
 print(
     f"Trace statitistics critical values at 90%, 95% and 99%: \n {variable_coint.trace_stat_crit_vals}"
 )
+
+# Statsmodel OLS
+
+
+X_diff = diff_control_df.drop(
+    ["Md", "y_md", "predicted_md", "residuals"], axis=1
+).copy()
+print(X_diff)
+
+X = sm.add_constant(X)  # adding a constant
+
+mod = sm.OLS(y_cont, X)
+res = mod.fit()
+# print(res.conf_int(0.05))
+print(res.summary())
+print(res.conf_int(0.05))
+print(res.mse_model)
+
+print(control_r_squared)
+
+predictions = res.predict(X)
+print(np.exp(predictions))
