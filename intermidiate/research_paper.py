@@ -16,6 +16,8 @@ from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.stattools import coint
 from statsmodels.tsa.vector_ar.vecm import coint_johansen
 import statsmodels.api as sm
+from statsmodels.stats.diagnostic import het_breuschpagan
+from statsmodels.stats.diagnostic import acorr_breusch_godfrey
 
 colors = qeds.themes.COLOR_CYCLE
 from sklearn import (
@@ -494,8 +496,8 @@ def normal_errors_assumption(dataframe, color, p_value_thresh=0.05):
         print("Try performing nonlinear transformations on variables")
 
 
-# normal_errors_assumption(control_df, "blue")
-# normal_errors_assumption(log_df, "blue")
+normal_errors_assumption(control_df, "blue")
+normal_errors_assumption(log_df, "blue")
 
 ## Little to no multicollinearlity
 
@@ -510,7 +512,10 @@ def multicollinearlity_assumption(features, feature_names=None):
     plt.show()
 
 
-# multicollinearlity_assumption(X)
+multicollinearlity_assumption(X)
+
+VIF = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
+print(f"Variance Infaltion Factor : \n {VIF}")
 
 ## No Autocorrelation of the error terms
 
@@ -542,7 +547,7 @@ def autocorrelation_assumption(dataframe):
 diff_control_df = (control_df - control_df.shift()).fillna(method="bfill")
 diff_log_df = (log_df - log_df.shift()).fillna(method="bfill")
 
-# autocorrelation_assumption(diff_control_df)
+autocorrelation_assumption(diff_control_df)
 # autocorrelation_assumption(diff_log_df)
 
 # Homoscedasticity
@@ -564,7 +569,7 @@ def homoscedasticity_assumption(dataframe):
     plt.show()
 
 
-# homoscedasticity_assumption(control_df)
+homoscedasticity_assumption(control_df)
 # homoscedasticity_assumption(log_df)
 
 # Cointegration test
@@ -623,3 +628,25 @@ print(control_r_squared)
 
 predictions = res.predict(X)
 print(np.exp(predictions))
+
+# perform Breusch-Pagan test
+
+
+def breusch_pagan():
+    names = ["Lagrange multiplier statistic", "p-value", "f-value", "f p-value"]
+    test = het_breuschpagan(res.resid, res.model.exog)
+    print(dict(zip(names, test)))
+
+
+breusch_pagan()
+
+# breusch godfrey
+
+
+def breusch_godfrey():
+    names = ["Lagrange multiplier statistic", "p-value", "f-value", "f p-value"]
+    test = acorr_breusch_godfrey(res)
+    print(dict(zip(names, test)))
+
+
+breusch_godfrey()
